@@ -1,0 +1,217 @@
+SoulBox 流程、使用方式與遊玩說明
+
+一、整體流程
+
+目前 SoulBox 是一個 ESP32 RPG + IoT 展示系統。
+
+流程如下：
+
+ESP32 開機
+↓
+初始化硬體：按鈕、DHT11、OLED、LED、蜂鳴器
+↓
+連上 Wi-Fi
+↓
+啟動網頁 Dashboard 與 WebSocket
+↓
+玩家按實體按鈕或網頁按鈕
+↓
+GameEngine 計算攻擊、HP、飽食度、Buff、勝負
+↓
+ESP32 同步更新 OLED、LED、蜂鳴器、網頁 Dashboard
+↓
+網頁用 Chart.js 顯示怪物 HP 變化
+
+簡單來說：
+可以把 ESP32 當成一台「實體 RPG 小主機」，網頁則是它的即時戰鬥面板。
+
+
+二、如何使用
+
+1. 打開 config.h，填入 Wi-Fi 資訊：
+
+const char WIFI_SSID[] = "你的WiFi名稱";
+const char WIFI_PASSWORD[] = "你的WiFi密碼";
+
+2. Arduino IDE 安裝需要的函式庫：
+
+ESPAsyncWebServer
+AsyncTCP
+ArduinoJson
+DHT sensor library
+Adafruit Unified Sensor
+U8g2
+
+3. 接線方式：
+
+OLED SDA  → GPIO 21
+OLED SCL  → GPIO 22
+DHT11     → GPIO 27
+攻擊按鈕  → GPIO 32 與 GND
+蜂鳴器    → GPIO 25
+LED       → GPIO 26
+
+4. 上傳程式到 ESP32。
+
+5. 上傳 data/www 到 SPIFFS。
+
+6. 打開序列埠監控視窗，看到 ESP32 顯示 IP，例如：
+
+Open http://192.168.x.x
+
+7. 用瀏覽器打開該 IP，即可進入 SoulBox Dashboard。
+
+
+三、如何遊玩
+
+玩家有兩種操作方式：實體玩法與網頁玩法。
+
+
+（一）實體玩法
+
+1. 按下接在 GPIO 32 的實體按鈕。
+2. ESP32 會判定為 button attack。
+3. GameEngine 會計算傷害。
+4. 怪物 HP 下降。
+5. OLED 顯示最新狀態。
+6. 網頁 Dashboard 即時更新。
+7. Chart.js 怪物 HP 圖表同步下降。
+8. 蜂鳴器播放攻擊音效。
+
+
+（二）網頁玩法
+
+Dashboard 上目前有以下按鈕：
+
+Attack：
+普通攻擊。
+
+Skill：
+技能攻擊，傷害較高，但消耗較多飽食度。
+
+Feed：
+餵食，恢復飽食度與玩家 HP。
+
+Boss：
+開始 Boss 戰。
+
+Rain：
+模擬雨天，套用 Water Magic x1.5。
+
+Clear：
+模擬晴天，套用 Light Sword x1.2。
+
+Clouds：
+模擬多雲，套用 Normal Attack x1.0。
+
+Hot：
+模擬高溫，套用 Fire Blade x1.3。
+
+
+四、目前核心展示玩法
+
+展示時最核心的玩法如下：
+
+按 Attack 或實體按鈕
+↓
+GameEngine 計算攻擊
+↓
+怪物扣血
+↓
+怪物反擊
+↓
+玩家 HP 下降
+↓
+OLED、蜂鳴器、LED 同步更新
+↓
+WebSocket 傳送 JSON 狀態
+↓
+網頁 Dashboard 即時更新
+↓
+Chart.js 圖表顯示怪物 HP 變化
+↓
+戰鬥紀錄 Log 顯示最新事件
+↓
+玩家可使用 Feed 維持狀態
+↓
+切換天氣 Buff 打出不同傷害
+↓
+挑戰 Boss
+
+
+五、遊戲規則簡介
+
+普通按鈕攻擊基礎傷害：20
+網頁普通攻擊基礎傷害：15
+技能攻擊基礎傷害：30
+普通怪物 HP：100
+Boss HP：180
+玩家 HP：100
+普通怪物反擊傷害：9
+Boss 反擊傷害：14
+
+餵食會增加飽食度，也會恢復玩家 HP。
+飽食度高時會增加傷害。
+飽食度太低時會降低傷害，並進入警告狀態。
+
+
+六、天氣 Buff 規則
+
+Rain：
+Water Magic x1.5
+
+Clear：
+Light Sword x1.2
+
+Clouds：
+Normal Attack x1.0
+
+Hot：
+Fire Blade x1.3
+
+攻擊公式：
+
+finalDamage = baseDamage * weatherMultiplier + satietyBonus
+
+
+七、畫面會看到什麼
+
+（一）OLED 會顯示：
+
+遊戲狀態
+玩家 HP 條
+怪物 HP 條
+飽食度
+天氣
+Buff
+表情
+
+
+（二）網頁 Dashboard 會顯示：
+
+玩家角色
+玩家 HP
+飽食度
+心情
+遊戲狀態
+怪物 HP
+是否 Boss
+溫度
+濕度
+天氣
+Buff
+怪物 HP 折線圖
+最近戰鬥紀錄
+
+
+八、展示重點
+
+本系統最重要的展示重點是：
+
+1. ESP32 作為實體 RPG 小主機。
+2. 實體按鈕透過中斷觸發攻擊。
+3. GameEngine 統一管理遊戲邏輯。
+4. WebSocket 即時同步 ESP32 與網頁 Dashboard。
+5. Chart.js 即時顯示怪物 HP 變化。
+6. OLED、LED、蜂鳴器提供實體回饋。
+7. DHT11 與天氣 Buff 讓環境資料轉化成遊戲效果。
