@@ -129,6 +129,10 @@ function sendCommand(cmd) {
   socket.send(JSON.stringify({ cmd }));
 }
 
+function setConnection(message) {
+  text("connection", message);
+}
+
 function syncRealWeather() {
   addBattleLog("Sync Real Weather requested.");
   sendCommand("sync_real_weather");
