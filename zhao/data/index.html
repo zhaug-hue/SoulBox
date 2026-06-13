@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SoulBox Demo Dashboard</title>
+  <title>SoulBox Fusion Dashboard</title>
   <link rel="stylesheet" href="/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Put chart.umd.min.js in data/www. If it is missing, app.js will still run with fallback bar. -->
+  <script src="/chart.umd.min.js"></script>
 </head>
 <body>
   <header>
-    <h1>SoulBox Demo Dashboard</h1>
+    <h1>SoulBox Fusion Dashboard</h1>
     <div class="connection" id="connection">Connecting...</div>
   </header>
 
@@ -22,7 +23,6 @@
       <div class="metric"><span>Day</span><span class="value" id="dayCount">-</span></div>
       <div class="metric"><span>Mood</span><span class="value" id="mood">-</span></div>
       <div class="metric"><span>Expression</span><span class="value" id="expressionCounter">-</span></div>
-      <div class="metric"><span>State</span><span class="value" id="gameState">-</span></div>
     </section>
 
     <section>
@@ -31,6 +31,7 @@
       <div class="controls" style="margin-top:12px">
         <button onclick="sendCommand('new_day')">New Day</button>
         <button onclick="openInfo('Tutorial', modalText.tutorial, 'manualTutorial')">Tutorial</button>
+        <button onclick="resetTutorialAndModals()">Reset Tutorial / Modal</button>
       </div>
     </section>
 
@@ -47,7 +48,9 @@
       <div class="controls" style="margin-top:12px">
         <button onclick="sendCommand('check_environment')">Check Environment</button>
         <button onclick="sendCommand('weather_api_update')">Weather API Tick</button>
-        <button onclick="sendCommand('sync_real_weather')">Sync Real Weather</button>
+        <button onclick="syncRealWeather()">Sync Real Weather</button>
+        <button class="primary" onclick="showExternalEnvironment()">顯示外在環境詳細數據</button>
+        <button onclick="showChatModal()">Join Chat</button>
       </div>
     </section>
 
@@ -56,7 +59,7 @@
       <div class="metric"><span>Satiety</span><span class="value" id="satiety">-</span></div>
       <div class="bar" id="satietyBar"><span></span></div>
       <div class="metric"><span>Effect</span><span class="value" id="satietyBuffName">-</span></div>
-      <button style="width:100%; margin-top:10px" onclick="sendCommand('feed')">回復飽食度</button>
+      <button style="width:100%; margin-top:10px" onclick="sendCommand('feed')">Recover Satiety</button>
     </section>
 
     <section>
@@ -69,13 +72,35 @@
       </div>
     </section>
 
+    <section class="battle-window-card wide">
+      <h2>Pixel Battle Window</h2>
+      <div class="pixel-battle">
+        <div class="enemy-panel">
+          <div class="battle-name-row"><strong id="battleEnemyName">Monster</strong><span id="battleEnemyLevel">Lv. 1</span></div>
+          <div class="hp-row"><span>HP</span><div class="pixel-hp"><span id="battleEnemyHpBar"></span></div></div>
+          <div class="hp-number" id="battleEnemyHpText">-</div>
+        </div>
+        <div class="battle-stage">
+          <div class="enemy-sprite" id="enemySprite"></div>
+          <div class="soul-sprite" id="soulSprite">SB</div>
+        </div>
+        <div class="battle-dialog" id="battlePrompt">SoulBox is waiting for your command.</div>
+        <div class="battle-command-grid">
+          <button class="primary" onclick="sendCommand('web_attack')">Normal Attack</button>
+          <button class="magic" id="battleSkillButton0" onclick="useSkillSlot(0)">Skill 1</button>
+          <button class="magic" id="battleSkillButton1" onclick="useSkillSlot(1)">Skill 2</button>
+          <button class="magic" id="battleSkillButton2" onclick="useSkillSlot(2)">Skill 3</button>
+        </div>
+      </div>
+    </section>
+
     <section>
       <h2>Attack Panel</h2>
       <div class="attack-grid">
-        <button class="primary" onclick="sendCommand('web_attack')">普通攻擊</button>
-        <button class="magic" id="skillButton0" onclick="useSkillSlot(0)">技能空槽</button>
-        <button class="magic" id="skillButton1" onclick="useSkillSlot(1)">技能空槽</button>
-        <button class="magic" id="skillButton2" onclick="useSkillSlot(2)">技能空槽</button>
+        <button class="primary" onclick="sendCommand('web_attack')">Normal Attack</button>
+        <button class="magic" id="skillButton0" onclick="useSkillSlot(0)">Empty Skill</button>
+        <button class="magic" id="skillButton1" onclick="useSkillSlot(1)">Empty Skill</button>
+        <button class="magic" id="skillButton2" onclick="useSkillSlot(2)">Empty Skill</button>
       </div>
     </section>
 
@@ -98,6 +123,8 @@
 
     <section class="wide">
       <h2>Monster HP Chart</h2>
+      <div class="chart-status" id="hpChartStatus">Waiting for Monster HP data...</div>
+      <div class="chart-fallback" id="hpChartFallback"><span></span></div>
       <div class="chartBox"><canvas id="hpChart"></canvas></div>
     </section>
   </main>
