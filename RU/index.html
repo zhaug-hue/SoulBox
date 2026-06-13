@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SoulBox Demo Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>SoulBox Demo Dashboard</h1>
+    <div class="connection" id="connection">Connecting...</div>
+  </header>
+
+  <main>
+    <section>
+      <h2>SoulBox</h2>
+      <div class="face" id="moodFace">(^.^)/</div>
+      <div class="metric"><span>OLED Face</span><span class="value" id="oledExpression">-</span></div>
+      <div class="metric"><span>Role</span><span class="value" id="role">-</span></div>
+      <div class="metric"><span>Day</span><span class="value" id="dayCount">-</span></div>
+      <div class="metric"><span>Mood</span><span class="value" id="mood">-</span></div>
+      <div class="metric"><span>Expression</span><span class="value" id="expressionCounter">-</span></div>
+      <div class="metric"><span>State</span><span class="value" id="gameState">-</span></div>
+    </section>
+
+    <section>
+      <h2>Demo Story</h2>
+      <div class="story" id="story">Waiting for SoulBox...</div>
+      <div class="controls" style="margin-top:12px">
+        <button onclick="sendCommand('new_day')">New Day</button>
+        <button onclick="openInfo('Tutorial', modalText.tutorial, 'manualTutorial')">Tutorial</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Live Environment</h2>
+      <div class="metric"><span>Weather</span><span class="value" id="weatherType">-</span></div>
+      <div class="metric"><span>Temperature</span><span class="value" id="temperature">-</span></div>
+      <div class="metric"><span>Humidity</span><span class="value" id="humidity">-</span></div>
+      <div class="metric"><span>Air Quality</span><span class="value" id="airQuality">-</span></div>
+      <div class="metric"><span>Weather API</span><span class="value" id="lastWeatherApiUpdate">-</span></div>
+      <div class="metric"><span>Air API</span><span class="value" id="lastAirQualityUpdate">-</span></div>
+      <div class="metric"><span>Weather Buff</span><span class="value" id="weatherBuffName">-</span></div>
+      <div class="story" id="environmentAdvice" style="margin-top:10px"></div>
+      <div class="controls" style="margin-top:12px">
+        <button onclick="sendCommand('check_environment')">Check Environment</button>
+        <button onclick="sendCommand('weather_api_update')">Weather API Tick</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Satiety Buff / Debuff</h2>
+      <div class="metric"><span>Satiety</span><span class="value" id="satiety">-</span></div>
+      <div class="bar" id="satietyBar"><span></span></div>
+      <div class="metric"><span>Effect</span><span class="value" id="satietyBuffName">-</span></div>
+      <button style="width:100%; margin-top:10px" onclick="sendCommand('feed')">Rest / Recover</button>
+    </section>
+
+    <section>
+      <h2>Monster / Boss</h2>
+      <div class="metric"><span>Name</span><span class="value" id="monsterName">-</span></div>
+      <div class="metric"><span>Monster HP</span><span class="value" id="monsterHp">-</span></div>
+      <div class="bar" id="monsterBar"><span></span></div>
+      <div class="metric"><span>Player HP</span><span class="value" id="playerHp">-</span></div>
+      <div class="bar" id="playerBar"><span></span></div>
+      <div class="controls">
+        <button class="primary" onclick="sendCommand('web_attack')">Attack</button>
+        <button class="danger" onclick="sendCommand('call_boss')">Call Boss</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Skills</h2>
+      <div class="skills" id="skills"></div>
+      <div class="controls three">
+        <button class="magic" onclick="sendCommand('skill_1')">Skill 1</button>
+        <button class="magic" onclick="sendCommand('skill_2')">Skill 2</button>
+        <button class="magic" onclick="sendCommand('skill_3')">Skill 3</button>
+      </div>
+    </section>
+
+    <section class="wide">
+      <h2>Weather Control</h2>
+      <div class="controls">
+        <button onclick="sendCommand('weather_rain')">Rain</button>
+        <button onclick="sendCommand('weather_clear')">Clear</button>
+        <button onclick="sendCommand('weather_clouds')">Clouds</button>
+        <button onclick="sendCommand('weather_hot')">Hot</button>
+        <button onclick="sendCommand('weather_thunder')">Thunderstorm</button>
+        <button onclick="openInfo('Weather Buff', modalText.weatherBuff, 'manualWeather')">Buff Info</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Battle Log</h2>
+      <div class="log" id="battleLog"></div>
+    </section>
+
+    <section class="wide">
+      <h2>HP Charts</h2>
+      <div class="chartBox"><canvas id="hpChart"></canvas></div>
+      <div class="chartBox" style="margin-top:14px"><canvas id="playerHpChart"></canvas></div>
+    </section>
+  </main>
+
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 id="modalTitle">Info</h2>
+      <div class="modalBody" id="modalBody"></div>
+      <div style="text-align:right; margin-top:14px">
+        <button onclick="closeModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
