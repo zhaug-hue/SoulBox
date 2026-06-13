@@ -55,7 +55,13 @@ struct GameStatus {
   bool bossBattle;
 
   String lastEvent;
-  
+  float extTemperature;
+  float extWindSpeed;
+  String extWindDir;
+  int extPressure;
+  float extVisibility;
+  float extDewPoint;
+  String healthAdvice;
 };
 
 class GameEngine {
@@ -65,6 +71,7 @@ public:
   void initGame();
   void initNewPlayer();
   void initDailyStatus();
+  void advanceDayFromNtp();
   void startFirstDayTutorial();
   void startBattle(bool isBoss);
   void startNormalMonster();
@@ -80,6 +87,7 @@ public:
 
   void applyWeatherBuff(const String &weatherType);
   void setEnvironment(float temperature, float humidity, const String &weatherType);
+  void setExtendedWeather(float temperature, float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint);
   void checkEnvironment();
   void simulateWeatherApiUpdate();
   void simulateAirQualityUpdate();
@@ -100,6 +108,9 @@ public:
   bool canAddSkill(const String &skillName) const;
   void addSkill(const String &skillName);
   void replaceSkill(int oldSkillIndex, const String &newSkillName);
+  void updateHealthAdvice();
+  void optimizeMemory();
+  void setSystemEvent(const String &event);
 
   GameStatus getStatus() const;
   bool hasStatusChanged() const;

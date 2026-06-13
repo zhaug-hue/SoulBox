@@ -27,10 +27,10 @@ void GameEngine::initNewPlayer() {
   _status.airQuality = "Good";
   _status.environmentAdvice = "Cloudy air is stable. Watch the monster and prepare a skill.";
   _status.story = "Day 1: SoulBox woke up. Weather will shape its first magic.";
-  _status.skills[0] = "";
+  _status.skills[0] = "Basic Slash";
   _status.skills[1] = "";
   _status.skills[2] = "";
-  _status.skillCount = 0;
+  _status.skillCount = 1;
   _status.weatherMultiplier = 1.0;
   _status.lastWeatherApiUpdate = 0;
   _status.lastAirQualityUpdate = 0;
@@ -42,6 +42,13 @@ void GameEngine::initNewPlayer() {
   _status.weatherBuffModalPending = false;
   _status.temperature = 0;
   _status.humidity = 0;
+  _status.extTemperature = 0;
+  _status.extWindSpeed = 0;
+  _status.extWindDir = "-";
+  _status.extPressure = 0;
+  _status.extVisibility = 0;
+  _status.extDewPoint = 0;
+  _status.healthAdvice = "Waiting for real weather data.";
   _status.inBattle = false;
   _status.monsterAlive = true;
   _status.bossBattle = false;
@@ -73,6 +80,26 @@ void GameEngine::initDailyStatus() {
   checkSatietyBuffDebuff();
   setState(IDLE);
   setEvent("Daily status initialized.");
+}
+
+void GameEngine::advanceDayFromNtp() {
+  _status.dayCount += 1;
+  reduceSatiety(DAILY_SATIETY_DECAY);
+  _status.monsterName = "Monster";
+  _status.monsterMaxHp = MONSTER_NORMAL_HP;
+  _status.monsterHp = MONSTER_NORMAL_HP;
+  _status.monsterAlive = true;
+  _status.inBattle = false;
+  _status.bossBattle = false;
+  _status.expressionCounter = 0;
+  _status.showEnvironmentAdvice = true;
+  _status.story = "A real new day has passed. SoulBox used satiety overnight and a new monster appeared.";
+  if (_status.satiety <= 3) {
+    setState(WARNING);
+  } else {
+    setState(IDLE);
+  }
+  setEvent("NTP daily reset: satiety decreased and monster was reset.");
 }
 
 void GameEngine::startFirstDayTutorial() {
@@ -108,6 +135,10 @@ void GameEngine::callBoss() {
 
 void GameEngine::playerAttack(const String &source) {
   if (!_status.inBattle || !_status.monsterAlive) {
+    if (_status.bossBattle && !_status.monsterAlive) {
+      setEvent("Boss is already defeated. Call Boss again or start a new day.");
+      return;
+    }
     startBattle(false);
   }
 
@@ -135,6 +166,10 @@ void GameEngine::useSkill(int skillIndex) {
   }
 
   if (!_status.inBattle || !_status.monsterAlive) {
+    if (_status.bossBattle && !_status.monsterAlive) {
+      setEvent("Boss is already defeated. Call Boss again or start a new day.");
+      return;
+    }
     startBattle(false);
   }
 
@@ -182,9 +217,10 @@ void GameEngine::monsterAttack() {
 
 void GameEngine::feedPet() {
   addSatiety(2);
+  _status.playerHp = clampInt(_status.playerHp + 8, 0, _status.playerMaxHp);
   checkMood();
   updateExpressionPositive();
-  setEvent("SoulBox recovered satiety.");
+  setEvent("SoulBox rested. Satiety and HP recovered.");
 }
 
 void GameEngine::addSatiety(int amount) {
@@ -203,7 +239,7 @@ void GameEngine::applyWeatherBuff(const String &weatherType) {
     _status.buffName = "Water Magic x1.5";
     _status.airQuality = "Wet";
     _status.environmentAdvice = "Rain strengthens water magic. Use the rain skill before Boss.";
-    // addSkill("Rain Ripple");
+    addSkill("Rain Ripple");
     _status.showWeatherBuff = true;
     _status.weatherBuffModalPending = true;
   } else if (weatherType == "Clear") {
@@ -211,7 +247,7 @@ void GameEngine::applyWeatherBuff(const String &weatherType) {
     _status.buffName = "Light Sword x1.2";
     _status.airQuality = "Bright";
     _status.environmentAdvice = "Clear weather gives steady light damage.";
-    // addSkill("Light Sword");
+    addSkill("Light Sword");
     _status.showWeatherBuff = true;
     _status.weatherBuffModalPending = true;
   } else if (weatherType == "Thunderstorm") {
@@ -219,7 +255,7 @@ void GameEngine::applyWeatherBuff(const String &weatherType) {
     _status.buffName = "Thunder Spark x1.7";
     _status.airQuality = "Electric";
     _status.environmentAdvice = "Thunderstorm is risky but powerful.";
-    // addSkill("Thunder Spark");
+    addSkill("Thunder Spark");
     _status.showWeatherBuff = true;
     _status.weatherBuffModalPending = true;
   } else if (weatherType == "Hot") {
@@ -227,7 +263,7 @@ void GameEngine::applyWeatherBuff(const String &weatherType) {
     _status.buffName = "Fire Blade x1.3";
     _status.airQuality = "Dry";
     _status.environmentAdvice = "Hot air boosts fire damage but drains energy.";
-    // addSkill("Fire Blade");
+    addSkill("Fire Blade");
     _status.showWeatherBuff = true;
     _status.weatherBuffModalPending = true;
   } else {
@@ -235,7 +271,7 @@ void GameEngine::applyWeatherBuff(const String &weatherType) {
     _status.buffName = "Normal Attack x1.0";
     _status.airQuality = "Good";
     _status.environmentAdvice = "Clouds are balanced. Save satiety for Boss.";
-    // addSkill("Cloud Guard");
+    addSkill("Cloud Guard");
     _status.showWeatherBuff = true;
     _status.weatherBuffModalPending = true;
   }
@@ -250,6 +286,18 @@ void GameEngine::setEnvironment(float temperature, float humidity, const String 
   _status.temperature = temperature;
   _status.humidity = humidity;
   applyWeatherBuff(weatherType);
+  updateHealthAdvice();
+}
+
+void GameEngine::setExtendedWeather(float temperature, float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint) {
+  _status.extTemperature = temperature;
+  _status.extWindSpeed = windSpeed;
+  _status.extWindDir = windDir;
+  _status.extPressure = pressure;
+  _status.extVisibility = visibility;
+  _status.extDewPoint = dewPoint;
+  updateHealthAdvice();
+  _statusChanged = true;
 }
 
 void GameEngine::checkEnvironment() {
@@ -331,6 +379,7 @@ void GameEngine::checkBattleResult() {
     setState(RESULT);
     if (_status.bossBattle) {
       grantBossSkill();
+      setEvent("Boss defeated. SoulBox learned a Boss skill.");
     } else {
       setEvent("Monster defeated. SoulBox expression improved.");
     }
@@ -408,13 +457,13 @@ void GameEngine::clearModalFlags() {
 void GameEngine::grantFirstDayWeatherSkill() {
   if (_status.dayCount == 1 && _status.skillCount < 2) {
     if (_status.weatherType == "Rain") {
-      // addSkill("Rain Ripple");
+      addSkill("Rain Ripple");
     } else if (_status.weatherType == "Clear") {
-      // addSkill("Light Sword");
+      addSkill("Light Sword");
     } else if (_status.weatherType == "Hot") {
-      // addSkill("Fire Blade");
+      addSkill("Fire Blade");
     } else {
-      // addSkill("Cloud Guard");
+      addSkill("Cloud Guard");
     }
   }
 }
@@ -554,4 +603,60 @@ void GameEngine::discardPendingSkill() {
   _status.pendingSkill = "";
   _status.hasPendingSkillChoice = false;
   _statusChanged = true;
+}
+
+void GameEngine::updateHealthAdvice() {
+  String advice = "";
+
+  if (_status.temperature >= 32.0 || _status.extTemperature >= 32.0) {
+    advice += "Temperature is high. Drink water and avoid staying under direct sun too long.\n";
+  } else if ((_status.temperature > 0 && _status.temperature <= 15.0) || (_status.extTemperature > 0 && _status.extTemperature <= 15.0)) {
+    advice += "Temperature is low. Keep warm before going outside.\n";
+  }
+
+  if (_status.humidity >= 80.0) {
+    advice += "Humidity is high. Consider dehumidifying the room.\n";
+  } else if (_status.humidity > 0 && _status.humidity <= 40.0) {
+    advice += "Air is dry. Drink water and watch skin dryness.\n";
+  }
+
+  if (_status.extPressure > 0 && _status.extPressure < 1000) {
+    advice += "Pressure is low. If you are sensitive to headaches, take more rest.\n";
+  } else if (_status.extPressure > 1025) {
+    advice += "Pressure is high. Pay attention to cardiovascular comfort.\n";
+  }
+
+  if (_status.extVisibility > 0 && _status.extVisibility < 5.0) {
+    advice += "Visibility is low. Outdoor air or fog may be poor, so be careful outside.\n";
+  }
+
+  if (_status.extWindSpeed > 8.0) {
+    advice += "Wind is strong. Watch loose objects and traffic safety.\n";
+  }
+
+  if (_status.extDewPoint >= 24.0) {
+    advice += "Dew point is high. It may feel muggy, so rest indoors if possible.\n";
+  }
+
+  if (advice == "") {
+    advice = "Current environment looks comfortable. Keep a steady pace.";
+  }
+
+  _status.healthAdvice = advice;
+  _statusChanged = true;
+}
+
+void GameEngine::optimizeMemory() {
+  if (ESP.getFreeHeap() >= 35000) {
+    return;
+  }
+
+  _status.lastEvent = "Memory guard optimized dashboard text.";
+  _status.story = "SoulBox cleared temporary thoughts and kept the core game state.";
+  _status.environmentAdvice = "Long environment text was refreshed to keep the ESP32 stable.";
+  _statusChanged = true;
+}
+
+void GameEngine::setSystemEvent(const String &event) {
+  setEvent(event);
 }

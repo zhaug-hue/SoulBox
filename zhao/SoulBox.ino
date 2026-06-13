@@ -5,6 +5,10 @@
 #include "OledDisplay.h"
 #include "WebManager.h"
 #include "Effects.h"
+#include <ArduinoOTA.h>
+#include <ESPmDNS.h>
+#include <WiFi.h>
+#include <time.h>
 
 GameEngine game;
 HardwareInput hardware;
@@ -14,9 +18,28 @@ WebManager web;
 Effects effects;
 
 unsigned long lastBroadcastMs = 0;
+int lastNtpYear = -1;
+int lastNtpYDay = -1;
+unsigned long lastNtpCheckMs = 0;
 
 void publishStatus(bool force);
 void handleWebCommand(const String &command);
+void syncExtendedWeatherToGame();
+void setupNetworkServices();
+void setupTimeSync();
+void checkNtpDayRollover();
+void handleWeatherAlertButton();
+
+void syncExtendedWeatherToGame() {
+  game.setExtendedWeather(
+    weather.getExtTemperature(),
+    weather.getWindSpeed(),
+    weather.getWindDir(),
+    weather.getPressure(),
+    weather.getVisibility(),
+    weather.getDewPoint()
+  );
+}
 
 void handleWebCommand(const String &command) {
   if (command == "web_attack") {
@@ -40,7 +63,23 @@ void handleWebCommand(const String &command) {
   } else if (command == "check_environment") {
     game.checkEnvironment();
   } else if (command == "weather_api_update") {
-    game.simulateWeatherApiUpdate();
+    if (weather.updateFromAPI()) {
+      game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
+      syncExtendedWeatherToGame();
+      game.setSystemEvent("Weather API tick updated real weather data.");
+    } else {
+      game.setSystemEvent("Weather API tick failed. Check Wi-Fi or OpenWeather settings.");
+    }
+  } else if (command == "sync_real_weather") {
+    if (weather.updateFromAPI()) {
+      game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
+      syncExtendedWeatherToGame();
+      game.setSystemEvent("Real weather synced successfully.");
+    } else {
+      game.setSystemEvent("Real weather sync failed. Check Wi-Fi or OpenWeather settings.");
+    }
+  } else if (command == "get_status") {
+    // Only publish the current status.
   } else if (command == "replace_skill_1") {
     game.resolvePendingSkill(0);
   } else if (command == "replace_skill_2") {
@@ -51,27 +90,105 @@ void handleWebCommand(const String &command) {
     game.discardPendingSkill();
   } else if (command == "clear_modals") {
     game.clearModalFlags();
-  } else if (command == "sync_real_weather") {
-    if (weather.updateFromAPI()) {
-      game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
-    }
   } else if (command == "weather_rain") {
     weather.updateWeatherMock("Rain");
-    game.setEnvironment(weather.getTemperature(), weather.getHumidity(), "Rain");
+    game.applyWeatherBuff("Rain");
   } else if (command == "weather_clear") {
     weather.updateWeatherMock("Clear");
-    game.setEnvironment(weather.getTemperature(), weather.getHumidity(), "Clear");
+    game.applyWeatherBuff("Clear");
   } else if (command == "weather_clouds") {
     weather.updateWeatherMock("Clouds");
-    game.setEnvironment(weather.getTemperature(), weather.getHumidity(), "Clouds");
+    game.applyWeatherBuff("Clouds");
   } else if (command == "weather_hot") {
     weather.updateWeatherMock("Hot");
-    game.setEnvironment(weather.getTemperature(), weather.getHumidity(), "Hot");
+    game.applyWeatherBuff("Hot");
   } else if (command == "weather_thunder") {
     weather.updateWeatherMock("Thunderstorm");
-    game.setEnvironment(weather.getTemperature(), weather.getHumidity(), "Thunderstorm");
+    game.applyWeatherBuff("Thunderstorm");
   }
 
+  publishStatus(true);
+}
+
+void setupNetworkServices() {
+  if (MDNS.begin(DEVICE_HOSTNAME)) {
+    MDNS.addService("http", "tcp", WEB_PORT);
+    Serial.print("mDNS ready: http://");
+    Serial.print(DEVICE_HOSTNAME);
+    Serial.println(".local");
+  } else {
+    Serial.println("mDNS setup failed.");
+  }
+
+  ArduinoOTA.setHostname(DEVICE_HOSTNAME);
+  ArduinoOTA
+    .onStart([]() {
+      Serial.println("OTA update started.");
+    })
+    .onEnd([]() {
+      Serial.println("OTA update finished.");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("OTA progress: %u%%\n", (progress * 100) / total);
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("OTA error[%u]\n", error);
+    });
+  ArduinoOTA.begin();
+  Serial.print("OTA ready: ");
+  Serial.println(DEVICE_HOSTNAME);
+}
+
+void setupTimeSync() {
+  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_1, NTP_SERVER_2);
+  Serial.println("NTP time sync requested.");
+}
+
+void checkNtpDayRollover() {
+  const unsigned long now = millis();
+  if (now - lastNtpCheckMs < NTP_CHECK_INTERVAL_MS) {
+    return;
+  }
+  lastNtpCheckMs = now;
+
+  struct tm timeInfo;
+  if (!getLocalTime(&timeInfo, 100)) {
+    Serial.println("NTP time not ready yet.");
+    return;
+  }
+
+  if (lastNtpYear < 0) {
+    lastNtpYear = timeInfo.tm_year;
+    lastNtpYDay = timeInfo.tm_yday;
+    Serial.printf("NTP day baseline set: year=%d yday=%d\n", lastNtpYear, lastNtpYDay);
+    return;
+  }
+
+  if (timeInfo.tm_year != lastNtpYear || timeInfo.tm_yday != lastNtpYDay) {
+    lastNtpYear = timeInfo.tm_year;
+    lastNtpYDay = timeInfo.tm_yday;
+    game.advanceDayFromNtp();
+    publishStatus(true);
+  }
+}
+
+void handleWeatherAlertButton() {
+  if (!hardware.consumeWeatherAlertEvent()) {
+    return;
+  }
+
+  if (weather.updateLocalSensor()) {
+    game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
+  }
+
+  game.checkEnvironment();
+  game.setSystemEvent(
+    String("Weather button: ") + weather.getWeatherType() +
+    ", " + String(weather.getTemperature(), 1) + "C, " +
+    String(weather.getHumidity(), 0) + "% humidity."
+  );
+  oled.showWeatherAlert(game.getStatus());
+  effects.playWarningSound();
   publishStatus(true);
 }
 
@@ -108,19 +225,20 @@ void setup() {
 
   web.setCommandCallback(handleWebCommand);
   web.begin();
+  setupNetworkServices();
+  setupTimeSync();
 
   publishStatus(true);
+  oled.showNetworkInfo("http://soul-box.local", true);
 }
 
 void loop() {
   web.loop();
+  ArduinoOTA.handle();
   game.tick();
 
-  if (hardware.consumeAttackEvent()) {
-    game.playerAttack("button");
-    effects.playAttackSound();
-    publishStatus(true);
-  }
+  handleWeatherAlertButton();
+  checkNtpDayRollover();
 
   if (weather.shouldUpdateLocal()) {
     if (weather.updateLocalSensor()) {
@@ -131,6 +249,7 @@ void loop() {
   if (weather.shouldUpdateAPI()) {
     if (weather.updateFromAPI()) {
       game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
+      syncExtendedWeatherToGame();
     }
   }
 
@@ -145,6 +264,12 @@ void loop() {
     Serial.println(ESP.getMinFreeHeap());
     Serial.print("Max alloc heap: ");
     Serial.println(ESP.getMaxAllocHeap());
+  }
+
+  static unsigned long lastMemoryGuardMs = 0;
+  if (millis() - lastMemoryGuardMs > 60000) {
+    lastMemoryGuardMs = millis();
+    game.optimizeMemory();
   }
 
   delay(10);

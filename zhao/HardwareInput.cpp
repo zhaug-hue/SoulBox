@@ -1,31 +1,31 @@
 #include "HardwareInput.h"
 #include "config.h"
 
-volatile bool HardwareInput::_attackFlag = false;
+volatile bool HardwareInput::_weatherAlertFlag = false;
 
 void HardwareInput::begin() {
-  pinMode(ATTACK_BUTTON_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(ATTACK_BUTTON_PIN), onAttackButtonPressed, FALLING);
+  pinMode(WEATHER_BUTTON_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(WEATHER_BUTTON_PIN), onWeatherButtonPressed, FALLING);
 }
 
-bool HardwareInput::consumeAttackEvent() {
-  if (!_attackFlag) {
+bool HardwareInput::consumeWeatherAlertEvent() {
+  if (!_weatherAlertFlag) {
     return false;
   }
 
   noInterrupts();
-  _attackFlag = false;
+  _weatherAlertFlag = false;
   interrupts();
 
   const unsigned long now = millis();
-  if (now - _lastAttackMs < BUTTON_DEBOUNCE_MS) {
+  if (now - _lastWeatherAlertMs < BUTTON_DEBOUNCE_MS) {
     return false;
   }
 
-  _lastAttackMs = now;
+  _lastWeatherAlertMs = now;
   return true;
 }
 
-void IRAM_ATTR HardwareInput::onAttackButtonPressed() {
-  _attackFlag = true;
+void IRAM_ATTR HardwareInput::onWeatherButtonPressed() {
+  _weatherAlertFlag = true;
 }

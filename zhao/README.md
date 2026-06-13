@@ -1,6 +1,6 @@
-# SoulBox Demo v5
+# SoulBox Demo v4
 
-SoulBox is an ESP32 RPG-style IoT demo. Version 5 keeps the v4 visible demo flow, the 2x2 attack panel, empty skill slots, Boss skill selection, satiety recovery, and adds teammate-provided OpenWeather API synchronization.
+SoulBox is an ESP32 RPG-style IoT demo. Version 4 focuses on polishing the visible demo flow: a normal Monster exists immediately after boot, Boss replaces the Monster panel with double HP, charts scale to the active monster, Player HP gets its own chart, OLED shows only SoulBox/environment information, and modals use a simple overlay controlled by WebSocket flags.
 
 ## Arduino libraries
 
@@ -43,44 +43,39 @@ The attack button uses `INPUT_PULLUP`, so connect the button between GPIO 32 and
 5. Use Skill 1 / Skill 2 / Skill 3 to attack.
 6. Call Boss after showing the first weather skill.
 7. Satiety changes during battle. High satiety gives +25% damage; low satiety gives -20% damage and warning feedback.
-8. Defeating Boss grants `Boss Breaker`. If 3 skills already exist, choose 3 from the old skills plus the new one.
+8. Defeating Boss grants or replaces the third skill with `Boss Breaker`.
 9. Use `Check Environment` to show environment advice without blocking the ESP32 loop.
-10. Use `Sync Real Weather` to pull current OpenWeather data.
-11. Watch Serial Monitor for heap reports every 5 seconds during long demo testing.
+10. Watch Serial Monitor for heap reports every 5 seconds during long demo testing.
 
 ## Current dashboard buttons
 
-- 2x2 Attack Panel: Normal Attack + three skill slots
+- Attack
+- Skill 1 / Skill 2 / Skill 3
 - Call Boss
 - Rain / Clear / Clouds / Hot / Thunderstorm
-- Sync Real Weather
 - New Day
-- Satiety recovery
+- Rest / Recover
 - Check Environment
 - Weather API Tick
 
-The satiety recovery button restores satiety only; it does not heal player HP.
+`Rest / Recover` is kept as a demo recovery control so testing does not get stuck.
 
-## v5 behavior
+## v4 behavior
 
 - Boot starts with `Monster`, `monsterHp = 100`, `monsterMaxHp = 100`, `isBoss = false`.
 - `Call Boss` changes the same Monster panel to `Boss`.
 - Boss HP is `MONSTER_NORMAL_HP * 2`, currently `200`.
 - Monster HP chart Y-axis follows `monsterMaxHp`, so Boss switches the chart from 100 to 200.
+- Dashboard shows Player HP and a Player HP chart.
 - Dashboard shows State from `gameState`.
 - OLED only shows SoulBox expression plus weather, temperature, humidity, and air quality.
 - Modal UI uses `modalOverlay` + `hidden`, and can be closed by pressing OK or clicking outside the modal box.
-- OpenWeather API can update weather, temperature, and humidity using `sync_real_weather`.
-- DHT11 local updates and OpenWeather API updates are scheduled separately.
-- Manual weather buttons still work and intentionally override weather type for demo control.
 
 ## Implementation notes
 
 - WebSocket JSON uses `StaticJsonDocument` and a fixed `char` buffer.
 - Dashboard modal text is stored in `data/www/app.js`, not in ESP32 C++ strings.
-- `Weather API Tick` is still a simulated GameEngine modal/status tick.
-- `Sync Real Weather` calls the real OpenWeather API through `WeatherManager::updateFromAPI()`.
+- `Weather API Tick` is a simulated non-blocking update. It is ready to be replaced with real OpenWeather API scheduling later.
 - `Check Environment` simulates the 10-minute environment-advice modal trigger.
 - Air quality is simulated from current weather, temperature, and humidity. It is ready to be replaced with a real API later.
 - OLED reads `oledExpression`, while the dashboard reads `webExpression`.
-- OpenWeather settings are in `config.h`. Replace the API key before public sharing.

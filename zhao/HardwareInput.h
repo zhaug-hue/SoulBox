@@ -6,12 +6,12 @@
 class HardwareInput {
 public:
   void begin();
-  bool consumeAttackEvent();
+  bool consumeWeatherAlertEvent();
 
 private:
-  static void IRAM_ATTR onAttackButtonPressed();
-  static volatile bool _attackFlag;
-  unsigned long _lastAttackMs = 0;
+  static void IRAM_ATTR onWeatherButtonPressed();
+  static volatile bool _weatherAlertFlag;
+  unsigned long _lastWeatherAlertMs = 0;
 };
 
 #endif

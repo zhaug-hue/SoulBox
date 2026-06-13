@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <math.h>
 
 WeatherManager::WeatherManager() : _dht(DHT_PIN, DHT11) {
 }
@@ -35,7 +36,7 @@ bool WeatherManager::updateLocalSensor() {
 
   _temperature = temperature;
   _humidity = humidity;
-  if (!_mockWeatherMode && _lastApiUpdateMs == 0) {
+  if (!_mockWeatherMode) {
     _weatherType = classifyWeather(temperature, humidity);
   }
   return true;
@@ -77,13 +78,19 @@ bool WeatherManager::updateFromAPI() {
   const String apiMain = doc["weather"][0]["main"].as<String>();
   const float apiTemp = doc["main"]["temp"] | _temperature;
   const float apiHumidity = doc["main"]["humidity"] | _humidity;
+  const int windDeg = doc["wind"]["deg"] | 0;
   const String locationName = doc["name"].as<String>();
 
   _temperature = apiTemp;
   _humidity = apiHumidity;
-  if (!_mockWeatherMode) {
-    _weatherType = mapApiWeather(apiMain, apiTemp);
-  }
+  _extTemperature = apiTemp;
+  _windSpeed = doc["wind"]["speed"] | 0.0f;
+  _windDir = degreesToDirection(windDeg);
+  _pressure = doc["main"]["pressure"] | 0;
+  _visibility = (doc["visibility"] | 0) / 1000.0f;
+  _dewPoint = calculateDewPoint(apiTemp, apiHumidity);
+  _weatherType = mapApiWeather(apiMain, apiTemp);
+  _mockWeatherMode = false;
 
   Serial.println("Weather API updated.");
   Serial.println("Location: " + locationName);
@@ -107,6 +114,30 @@ float WeatherManager::getHumidity() const {
 
 String WeatherManager::getWeatherType() const {
   return _weatherType;
+}
+
+float WeatherManager::getExtTemperature() const {
+  return _extTemperature;
+}
+
+float WeatherManager::getWindSpeed() const {
+  return _windSpeed;
+}
+
+String WeatherManager::getWindDir() const {
+  return _windDir;
+}
+
+int WeatherManager::getPressure() const {
+  return _pressure;
+}
+
+float WeatherManager::getVisibility() const {
+  return _visibility;
+}
+
+float WeatherManager::getDewPoint() const {
+  return _dewPoint;
 }
 
 String WeatherManager::classifyWeather(float temperature, float humidity) const {
@@ -133,4 +164,26 @@ String WeatherManager::mapApiWeather(const String &apiMain, float currentTemp) c
     return currentTemp >= 30.0 ? "Hot" : "Clear";
   }
   return "Clouds";
+}
+
+String WeatherManager::degreesToDirection(int deg) const {
+  const char *directions[] = {
+    "N", "NNE", "NE", "ENE",
+    "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW",
+    "W", "WNW", "NW", "NNW"
+  };
+  const int index = (int)((deg / 22.5f) + 0.5f) % 16;
+  return directions[index];
+}
+
+float WeatherManager::calculateDewPoint(float temperature, float humidity) const {
+  if (humidity <= 0) {
+    return 0;
+  }
+
+  const float a = 17.27f;
+  const float b = 237.7f;
+  const float alpha = ((a * temperature) / (b + temperature)) + log(humidity / 100.0f);
+  return (b * alpha) / (a - alpha);
 }

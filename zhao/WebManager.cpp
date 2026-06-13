@@ -44,11 +44,15 @@ void WebManager::setCommandCallback(WebCommandCallback callback) {
 }
 
 void WebManager::broadcastStatus(const GameStatus &status) {
-  char buffer[1536];
+  char buffer[5120];
   memset(buffer, 0, sizeof(buffer));
   const size_t length = statusToJson(status, buffer, sizeof(buffer));
   if (length > 0) {
+    Serial.print("WS STATUS JSON bytes: ");
+    Serial.println(length);
     _socket.textAll(buffer);
+  } else {
+    Serial.println("WS STATUS JSON empty or serialization failed.");
   }
 }
 
@@ -65,6 +69,9 @@ void WebManager::onSocketEvent(AsyncWebSocket *server,
   switch (type) {
     case WS_EVT_CONNECT:
       Serial.printf("WebSocket client %u connected.\n", client->id());
+      if (_instance->_commandCallback) {
+        _instance->_commandCallback(String("get_status"));
+      }
       break;
     case WS_EVT_DISCONNECT:
       Serial.printf("WebSocket client %u disconnected.\n", client->id());
@@ -78,7 +85,13 @@ void WebManager::onSocketEvent(AsyncWebSocket *server,
 }
 
 void WebManager::handleSocketData(uint8_t *data, size_t len) {
-  StaticJsonDocument<160> doc;
+  Serial.print("WS RAW: ");
+  for (size_t i = 0; i < len; i++) {
+    Serial.print((char)data[i]);
+  }
+  Serial.println();
+
+  StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, data, len);
   if (error) {
     Serial.println("Invalid WebSocket JSON.");
@@ -92,9 +105,7 @@ void WebManager::handleSocketData(uint8_t *data, size_t len) {
 }
 
 size_t WebManager::statusToJson(const GameStatus &status, char *buffer, size_t bufferSize) {
-  StaticJsonDocument<1280> doc;
-  doc["playerHp"] = status.playerHp;
-  doc["playerMaxHp"] = status.playerMaxHp;
+  StaticJsonDocument<4096> doc;
   doc["monsterHp"] = status.monsterHp;
   doc["monsterMaxHp"] = status.monsterMaxHp;
   doc["monsterName"] = status.monsterName;
@@ -133,6 +144,13 @@ size_t WebManager::statusToJson(const GameStatus &status, char *buffer, size_t b
   doc["isBoss"] = status.bossBattle;
   doc["event"] = status.lastEvent;
   doc["lastEvent"] = status.lastEvent;
+  doc["extTemperature"] = status.extTemperature;
+  doc["windSpeed"] = status.extWindSpeed;
+  doc["windDir"] = status.extWindDir;
+  doc["pressure"] = status.extPressure;
+  doc["visibility"] = status.extVisibility;
+  doc["dewPoint"] = status.extDewPoint;
+  doc["healthAdvice"] = status.healthAdvice;
 
   JsonArray skills = doc.createNestedArray("skills");
   doc["pendingSkill"] = status.pendingSkill;
@@ -141,11 +159,22 @@ size_t WebManager::statusToJson(const GameStatus &status, char *buffer, size_t b
     skills.add(status.skills[i]);
   }
 
-  return serializeJson(doc, buffer, bufferSize);
+  if (doc.overflowed()) {
+    Serial.println("Status JSON document overflowed.");
+    return 0;
+  }
+
+  const size_t length = serializeJson(doc, buffer, bufferSize);
+  if (length >= bufferSize - 1) {
+    Serial.println("Status JSON buffer is too small.");
+    return 0;
+  }
+  return length;
 }
 
 void WebManager::connectWiFi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setHostname(DEVICE_HOSTNAME);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
 

@@ -10,6 +10,8 @@ public:
   OledDisplay();
   void begin();
   void showBootScreen();
+  void showNetworkInfo(const String &url, bool qrAvailable);
+  void showWeatherAlert(const GameStatus &status);
   void update(const GameStatus &status);
 
 private:
