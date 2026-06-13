@@ -1,4 +1,4 @@
-  #include "WebManager.h"
+#include "WebManager.h"
 #include "config.h"
 #include <SPIFFS.h>
 #include <WiFi.h>
@@ -78,7 +78,8 @@ void WebManager::onSocketEvent(AsyncWebSocket *server,
 }
 
 void WebManager::handleSocketData(uint8_t *data, size_t len) {
-  StaticJsonDocument<160> doc;
+  // 將原本的 160 擴充一點，預留解析空間
+  StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, data, len);
   if (error) {
     Serial.println("Invalid WebSocket JSON.");
@@ -133,6 +134,13 @@ size_t WebManager::statusToJson(const GameStatus &status, char *buffer, size_t b
   doc["isBoss"] = status.bossBattle;
   doc["event"] = status.lastEvent;
   doc["lastEvent"] = status.lastEvent;
+  
+  // 新增：加入外部天氣的 JSON 打包
+  doc["windSpeed"] = status.extWindSpeed;
+  doc["windDir"] = status.extWindDir;
+  doc["pressure"] = status.extPressure;
+  doc["visibility"] = status.extVisibility;
+  doc["dewPoint"] = status.extDewPoint;
 
   JsonArray skills = doc.createNestedArray("skills");
   for (int i = 0; i < status.skillCount; i++) {

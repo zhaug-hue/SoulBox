@@ -53,6 +53,13 @@ struct GameStatus {
   bool bossBattle;
 
   String lastEvent;
+
+  // 新增：外部真實氣象擴充數據
+  float extWindSpeed;
+  String extWindDir;
+  int extPressure;
+  float extVisibility;
+  float extDewPoint;
 };
 
 class GameEngine {
@@ -75,6 +82,9 @@ public:
 
   void applyWeatherBuff(const String &weatherType);
   void setEnvironment(float temperature, float humidity, const String &weatherType);
+  // 新增：設定外部擴充氣象數據
+  void setExtendedWeather(float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint);
+  
   void checkEnvironment();
   void simulateWeatherApiUpdate();
   void simulateAirQualityUpdate();

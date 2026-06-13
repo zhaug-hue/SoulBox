@@ -32,6 +32,14 @@ void GameEngine::initNewPlayer() {
   _status.weatherMultiplier = 1.0;
   _status.lastWeatherApiUpdate = 0;
   _status.lastAirQualityUpdate = 0;
+  
+  // 初始化擴充氣象變數
+  _status.extWindSpeed = 0;
+  _status.extWindDir = "-";
+  _status.extPressure = 0;
+  _status.extVisibility = 0;
+  _status.extDewPoint = 0;
+
   _status.showTutorial = true;
   _status.showWeatherBuff = false;
   _status.showEnvironmentAdvice = false;
@@ -52,10 +60,9 @@ void GameEngine::initDailyStatus() {
   _status.dayCount += 1;
   _status.satiety = SATIETY_MAX;
   _status.playerHp = PLAYER_MAX_HP;
-  _status.monsterHp = 0;
+  _status.monsterHp = MONSTER_NORMAL_HP;
   _status.monsterMaxHp = MONSTER_NORMAL_HP;
   _status.monsterName = "Monster";
-  _status.monsterHp = MONSTER_NORMAL_HP;
   _status.monsterAlive = true;
   _status.inBattle = false;
   _status.bossBattle = false;
@@ -249,6 +256,16 @@ void GameEngine::setEnvironment(float temperature, float humidity, const String 
   _status.temperature = temperature;
   _status.humidity = humidity;
   applyWeatherBuff(weatherType);
+}
+
+// 新增：寫入外部氣象資料的實作函式
+void GameEngine::setExtendedWeather(float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint) {
+  _status.extWindSpeed = windSpeed;
+  _status.extWindDir = windDir;
+  _status.extPressure = pressure;
+  _status.extVisibility = visibility;
+  _status.extDewPoint = dewPoint;
+  _statusChanged = true;
 }
 
 void GameEngine::checkEnvironment() {

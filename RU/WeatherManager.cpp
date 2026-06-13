@@ -11,12 +11,10 @@ void WeatherManager::begin() {
   _dht.begin();
 }
 
-// 更改原本的 shouldUpdate 名稱，用來區分本機感測與外部 API
 bool WeatherManager::shouldUpdateLocal() const {
   return millis() - _lastLocalUpdateMs >= WEATHER_UPDATE_INTERVAL_MS;
 }
 
-// 新增：判斷是否該抓 API
 bool WeatherManager::shouldUpdateAPI() const {
   return _lastApiUpdateMs == 0 || millis() - _lastApiUpdateMs >= API_UPDATE_INTERVAL_MS;
 }
@@ -34,21 +32,18 @@ bool WeatherManager::updateLocalSensor() {
   _temperature = temperature;
   _humidity = humidity;
   
-  // 只有在非模擬模式，且 API 還沒抓到資料時，才用 DHT11 決定天氣 Buff
   if (!_mockWeatherMode && _lastApiUpdateMs == 0) {
     _weatherType = classifyWeather(temperature, humidity);
   }
   return true;
 }
 
-// 新增：抓取 OpenWeather API 的主邏輯
 bool WeatherManager::updateFromAPI() {
   if (WiFi.status() != WL_CONNECTED) {
     return false;
   }
 
   HTTPClient http;
-  // 使用虎尾科大的經緯度
   String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + String(OPENWEATHER_LAT) + "&lon=" + String(OPENWEATHER_LON) + "&appid=" + String(OPENWEATHER_API_KEY) + "&units=metric";
   
   http.begin(url);
@@ -68,10 +63,20 @@ bool WeatherManager::updateFromAPI() {
         _weatherType = mapApiWeather(apiMain, _temperature);
       }
       
+      // 擷取擴充氣象資料
+      _windSpeed = doc["wind"]["speed"] | 0.0f;
+      int deg = doc["wind"]["deg"] | 0;
+      _windDir = degreesToDirection(deg);
+      _pressure = doc["main"]["pressure"] | 0;
+      _visibility = (doc["visibility"] | 0) / 1000.0f; // 轉為公里
+      
+      float extTemp = doc["main"]["temp"] | _temperature;
+      float extHum = doc["main"]["humidity"] | _humidity;
+      _dewPoint = calculateDewPoint(extTemp, extHum);
+      
       _lastApiUpdateMs = millis();
       http.end();
       
-      // 印出 Log 方便從 Serial Monitor 確認是否有抓對
       Serial.println("成功取得天氣 API!");
       Serial.println("地點定位: " + locationName);
       Serial.println("API原始天氣: " + apiMain + " -> 轉換為遊戲Buff: " + _weatherType);
@@ -91,35 +96,25 @@ bool WeatherManager::updateFromAPI() {
 void WeatherManager::updateWeatherMock(const String &weather) {
   _weatherType = weather;
   _mockWeatherMode = true;
-  _lastLocalUpdateMs = millis(); // 修正變數名稱
+  _lastLocalUpdateMs = millis();
 }
 
-float WeatherManager::getTemperature() const {
-  return _temperature;
-}
-
-float WeatherManager::getHumidity() const {
-  return _humidity;
-}
-
-String WeatherManager::getWeatherType() const {
-  return _weatherType;
-}
+float WeatherManager::getTemperature() const { return _temperature; }
+float WeatherManager::getHumidity() const { return _humidity; }
+String WeatherManager::getWeatherType() const { return _weatherType; }
+float WeatherManager::getWindSpeed() const { return _windSpeed; }
+String WeatherManager::getWindDir() const { return _windDir; }
+int WeatherManager::getPressure() const { return _pressure; }
+float WeatherManager::getVisibility() const { return _visibility; }
+float WeatherManager::getDewPoint() const { return _dewPoint; }
 
 String WeatherManager::classifyWeather(float temperature, float humidity) const {
-  if (temperature >= 30) {
-    return "Hot";
-  }
-  if (humidity >= 75) {
-    return "Rain";
-  }
-  if (humidity <= 45) {
-    return "Clear";
-  }
+  if (temperature >= 30) return "Hot";
+  if (humidity >= 75) return "Rain";
+  if (humidity <= 45) return "Clear";
   return "Clouds";
 }
 
-// 新增：將 OpenWeather 回傳的狀態轉成 SoulBox 的五種天氣 Buff
 String WeatherManager::mapApiWeather(const String &apiMain, float currentTemp) const {
   if (apiMain == "Thunderstorm") return "Thunderstorm";
   if (apiMain == "Rain" || apiMain == "Drizzle") return "Rain";
@@ -128,4 +123,17 @@ String WeatherManager::mapApiWeather(const String &apiMain, float currentTemp) c
     return "Clear";
   }
   return "Clouds";
+}
+
+String WeatherManager::degreesToDirection(int deg) const {
+  const char* directions[] = {"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
+  int val = (int)((deg / 22.5) + 0.5);
+  return directions[val % 16];
+}
+
+float WeatherManager::calculateDewPoint(float temp, float hum) const {
+  float a = 17.27;
+  float b = 237.7;
+  float alpha = ((a * temp) / (b + temp)) + log(hum / 100.0);
+  return (b * alpha) / (a - alpha);
 }
