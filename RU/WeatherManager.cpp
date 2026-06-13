@@ -64,15 +64,15 @@ bool WeatherManager::updateFromAPI() {
       }
       
       // 擷取擴充氣象資料
+      _extTemperature = doc["main"]["temp"] | _temperature; // 儲存外部溫度
       _windSpeed = doc["wind"]["speed"] | 0.0f;
       int deg = doc["wind"]["deg"] | 0;
       _windDir = degreesToDirection(deg);
       _pressure = doc["main"]["pressure"] | 0;
-      _visibility = (doc["visibility"] | 0) / 1000.0f; // 轉為公里
+      _visibility = (doc["visibility"] | 0) / 1000.0f;
       
-      float extTemp = doc["main"]["temp"] | _temperature;
       float extHum = doc["main"]["humidity"] | _humidity;
-      _dewPoint = calculateDewPoint(extTemp, extHum);
+      _dewPoint = calculateDewPoint(_extTemperature, extHum); // 使用外部溫度計算露點
       
       _lastApiUpdateMs = millis();
       http.end();
@@ -102,6 +102,8 @@ void WeatherManager::updateWeatherMock(const String &weather) {
 float WeatherManager::getTemperature() const { return _temperature; }
 float WeatherManager::getHumidity() const { return _humidity; }
 String WeatherManager::getWeatherType() const { return _weatherType; }
+
+float WeatherManager::getExtTemperature() const { return _extTemperature; }
 float WeatherManager::getWindSpeed() const { return _windSpeed; }
 String WeatherManager::getWindDir() const { return _windDir; }
 int WeatherManager::getPressure() const { return _pressure; }

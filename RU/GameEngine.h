@@ -54,12 +54,16 @@ struct GameStatus {
 
   String lastEvent;
 
-  // 新增：外部真實氣象擴充數據
+  // --- 新增：外部真實氣象擴充數據 ---
+  float extTemperature;
   float extWindSpeed;
   String extWindDir;
   int extPressure;
   float extVisibility;
   float extDewPoint;
+  
+  // --- 新增：健康貼心提醒 ---
+  String healthAdvice; 
 };
 
 class GameEngine {
@@ -82,8 +86,9 @@ public:
 
   void applyWeatherBuff(const String &weatherType);
   void setEnvironment(float temperature, float humidity, const String &weatherType);
-  // 新增：設定外部擴充氣象數據
-  void setExtendedWeather(float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint);
+  
+  // 新增：寫入外部擴充氣象數據 (包含溫度)
+  void setExtendedWeather(float temp, float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint);
   
   void checkEnvironment();
   void simulateWeatherApiUpdate();
@@ -105,6 +110,10 @@ public:
   bool canAddSkill(const String &skillName) const;
   void addSkill(const String &skillName);
   void replaceSkill(int oldSkillIndex, const String &newSkillName);
+
+  // --- 新增：健康與記憶體優化管家 ---
+  void updateHealthAdvice(); // 綜合數值計算健康提醒
+  void optimizeMemory();     // 保留核心數據，清除不必要字串的記憶體管家
 
   GameStatus getStatus() const;
   bool hasStatusChanged() const;

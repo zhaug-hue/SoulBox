@@ -22,6 +22,7 @@ public:
   int getPressure() const;
   float getVisibility() const;
   float getDewPoint() const;
+  float getExtTemperature() const;
 
 private:
   DHT _dht;
@@ -36,6 +37,7 @@ private:
   int _pressure = 0;
   float _visibility = 0;
   float _dewPoint = 0;
+  float _extTemperature = 0;
 
   String degreesToDirection(int deg) const;
   float calculateDewPoint(float temp, float hum) const;

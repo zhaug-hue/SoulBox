@@ -66,8 +66,8 @@ void loop() {
         weatherManager.getHumidity(), 
         weatherManager.getWeatherType()
       );
-      // 將擴充氣象寫入引擎
       gameEngine.setExtendedWeather(
+        weatherManager.getExtTemperature(), // 外部溫度
         weatherManager.getWindSpeed(),
         weatherManager.getWindDir(),
         weatherManager.getPressure(),
@@ -101,10 +101,18 @@ void loop() {
 
   oledDisplay.update(currentStatus);
 
+  // 效能監控：每 5 秒在 Serial 印出 Free Heap
   static unsigned long lastHeapReportMs = 0;
   if (millis() - lastHeapReportMs >= 5000) {
     lastHeapReportMs = millis();
     Serial.printf("[System] Free Heap: %u bytes\n", ESP.getFreeHeap());
+  }
+
+  // 記憶體管家：每 60 秒觸發一次資源優化，防止 ESP32 崩潰
+  static unsigned long lastMemCheckMs = 0;
+  if (millis() - lastMemCheckMs >= 60000) {
+    lastMemCheckMs = millis();
+    gameEngine.optimizeMemory(); 
   }
 }
 
@@ -128,8 +136,8 @@ void handleWebCommand(const String &command) {
         weatherManager.getHumidity(), 
         weatherManager.getWeatherType()
       );
-      // 將擴充氣象寫入引擎
       gameEngine.setExtendedWeather(
+        weatherManager.getExtTemperature(), // 外部溫度
         weatherManager.getWindSpeed(),
         weatherManager.getWindDir(),
         weatherManager.getPressure(),

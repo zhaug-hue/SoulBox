@@ -44,7 +44,7 @@ void WebManager::setCommandCallback(WebCommandCallback callback) {
 }
 
 void WebManager::broadcastStatus(const GameStatus &status) {
-  char buffer[1536];
+  char buffer[2048]; // ⚠️ 擴大緩衝區以容納長篇健康提醒
   memset(buffer, 0, sizeof(buffer));
   const size_t length = statusToJson(status, buffer, sizeof(buffer));
   if (length > 0) {
@@ -78,7 +78,6 @@ void WebManager::onSocketEvent(AsyncWebSocket *server,
 }
 
 void WebManager::handleSocketData(uint8_t *data, size_t len) {
-  // 將原本的 160 擴充一點，預留解析空間
   StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, data, len);
   if (error) {
@@ -93,7 +92,7 @@ void WebManager::handleSocketData(uint8_t *data, size_t len) {
 }
 
 size_t WebManager::statusToJson(const GameStatus &status, char *buffer, size_t bufferSize) {
-  StaticJsonDocument<1280> doc;
+  StaticJsonDocument<2048> doc; // ⚠️ 擴大 JSON Document 以容納長篇健康提醒
   doc["playerHp"] = status.playerHp;
   doc["playerMaxHp"] = status.playerMaxHp;
   doc["monsterHp"] = status.monsterHp;
@@ -135,12 +134,14 @@ size_t WebManager::statusToJson(const GameStatus &status, char *buffer, size_t b
   doc["event"] = status.lastEvent;
   doc["lastEvent"] = status.lastEvent;
   
-  // 新增：加入外部天氣的 JSON 打包
+  // 外部氣象與健康數據打包
+  doc["extTemperature"] = status.extTemperature;
   doc["windSpeed"] = status.extWindSpeed;
   doc["windDir"] = status.extWindDir;
   doc["pressure"] = status.extPressure;
   doc["visibility"] = status.extVisibility;
   doc["dewPoint"] = status.extDewPoint;
+  doc["healthAdvice"] = status.healthAdvice;
 
   JsonArray skills = doc.createNestedArray("skills");
   for (int i = 0; i < status.skillCount; i++) {

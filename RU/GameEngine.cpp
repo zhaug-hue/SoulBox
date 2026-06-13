@@ -33,12 +33,14 @@ void GameEngine::initNewPlayer() {
   _status.lastWeatherApiUpdate = 0;
   _status.lastAirQualityUpdate = 0;
   
-  // 初始化擴充氣象變數
+  // 初始化擴充氣象與健康變數
+  _status.extTemperature = 0;
   _status.extWindSpeed = 0;
   _status.extWindDir = "-";
   _status.extPressure = 0;
   _status.extVisibility = 0;
   _status.extDewPoint = 0;
+  _status.healthAdvice = "等待氣象資料載入中，請隨時注意身體變化喔！";
 
   _status.showTutorial = true;
   _status.showWeatherBuff = false;
@@ -258,13 +260,15 @@ void GameEngine::setEnvironment(float temperature, float humidity, const String 
   applyWeatherBuff(weatherType);
 }
 
-// 新增：寫入外部氣象資料的實作函式
-void GameEngine::setExtendedWeather(float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint) {
+void GameEngine::setExtendedWeather(float temp, float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint) {
+  _status.extTemperature = temp;
   _status.extWindSpeed = windSpeed;
   _status.extWindDir = windDir;
   _status.extPressure = pressure;
   _status.extVisibility = visibility;
   _status.extDewPoint = dewPoint;
+  
+  updateHealthAdvice(); // 觸發健康提醒更新
   _statusChanged = true;
 }
 
@@ -377,34 +381,18 @@ void GameEngine::updateExpressionNegative() {
 }
 
 String GameEngine::getCurrentExpression() const {
-  if (_status.expressionCounter >= 3) {
-    return "( ^_^ )";
-  }
-  if (_status.expressionCounter >= 1) {
-    return "( 'u' )";
-  }
-  if (_status.expressionCounter <= -3) {
-    return "( T_T )";
-  }
-  if (_status.expressionCounter <= -1) {
-    return "( >_< )";
-  }
+  if (_status.expressionCounter >= 3) return "( ^_^ )";
+  if (_status.expressionCounter >= 1) return "( 'u' )";
+  if (_status.expressionCounter <= -3) return "( T_T )";
+  if (_status.expressionCounter <= -1) return "( >_< )";
   return "( ._. )";
 }
 
 String GameEngine::getCurrentOledExpression() const {
-  if (_status.expressionCounter >= 3) {
-    return "(*^_^*)";
-  }
-  if (_status.expressionCounter >= 1) {
-    return "(^_^)v";
-  }
-  if (_status.expressionCounter <= -3) {
-    return "(T_T)";
-  }
-  if (_status.expressionCounter <= -1) {
-    return "(>_<;)";
-  }
+  if (_status.expressionCounter >= 3) return "(*^_^*)";
+  if (_status.expressionCounter >= 1) return "(^_^)v";
+  if (_status.expressionCounter <= -3) return "(T_T)";
+  if (_status.expressionCounter <= -1) return "(>_<;)";
   return "(^.^)/";
 }
 
@@ -424,15 +412,10 @@ void GameEngine::clearModalFlags() {
 
 void GameEngine::grantFirstDayWeatherSkill() {
   if (_status.dayCount == 1 && _status.skillCount < 2) {
-    if (_status.weatherType == "Rain") {
-      addSkill("Rain Ripple");
-    } else if (_status.weatherType == "Clear") {
-      addSkill("Light Sword");
-    } else if (_status.weatherType == "Hot") {
-      addSkill("Fire Blade");
-    } else {
-      addSkill("Cloud Guard");
-    }
+    if (_status.weatherType == "Rain") { addSkill("Rain Ripple"); } 
+    else if (_status.weatherType == "Clear") { addSkill("Light Sword"); } 
+    else if (_status.weatherType == "Hot") { addSkill("Fire Blade"); } 
+    else { addSkill("Cloud Guard"); }
   }
 }
 
@@ -452,26 +435,20 @@ void GameEngine::handleBossFailedPenalty() {
 
 bool GameEngine::canAddSkill(const String &skillName) const {
   for (int i = 0; i < _status.skillCount; i++) {
-    if (_status.skills[i] == skillName) {
-      return false;
-    }
+    if (_status.skills[i] == skillName) return false;
   }
   return _status.skillCount < 3;
 }
 
 void GameEngine::addSkill(const String &skillName) {
-  if (!canAddSkill(skillName)) {
-    return;
-  }
+  if (!canAddSkill(skillName)) return;
   _status.skills[_status.skillCount] = skillName;
   _status.skillCount += 1;
   _statusChanged = true;
 }
 
 void GameEngine::replaceSkill(int oldSkillIndex, const String &newSkillName) {
-  if (oldSkillIndex < 0 || oldSkillIndex >= 3) {
-    return;
-  }
+  if (oldSkillIndex < 0 || oldSkillIndex >= 3) return;
   _status.skills[oldSkillIndex] = newSkillName;
   if (_status.skillCount <= oldSkillIndex) {
     _status.skillCount = oldSkillIndex + 1;
@@ -533,11 +510,62 @@ int GameEngine::calculateDamage(int baseDamage) const {
 }
 
 int GameEngine::clampInt(int value, int minValue, int maxValue) const {
-  if (value < minValue) {
-    return minValue;
-  }
-  if (value > maxValue) {
-    return maxValue;
-  }
+  if (value < minValue) return minValue;
+  if (value > maxValue) return maxValue;
   return value;
+}
+
+void GameEngine::updateHealthAdvice() {
+  String advice = "";
+
+  if (_status.temperature >= 32.0 || _status.extTemperature >= 32.0) {
+    advice += "🌡️ 氣溫偏高，請多補充水分、提防中暑！\n";
+  } else if (_status.temperature <= 15.0 || _status.extTemperature <= 15.0) {
+    advice += "❄️ 天氣較冷，請記得多加件衣服保暖！\n";
+  }
+
+  if (_status.humidity >= 80.0) {
+    advice += "💧 環境濕度太高，容易孳生塵蟎或黴菌，建議開啟除濕機喔。\n";
+  } else if (_status.humidity > 0 && _status.humidity <= 40.0) {
+    advice += "🌵 空氣偏乾燥，請注意皮膚保濕與多喝水。\n";
+  }
+
+  if (_status.extPressure > 0 && _status.extPressure < 1000) {
+    advice += "📉 氣壓偏低，如果容易偏頭痛或關節痠痛，請多休息。\n";
+  } else if (_status.extPressure > 1025) {
+    advice += "📈 氣壓偏高，請留意長輩的心血管狀況。\n";
+  }
+
+  if (_status.extVisibility > 0 && _status.extVisibility < 5.0) {
+    advice += "🌫️ 戶外能見度偏低，可能有霧霾或空汙，外出建議配戴口罩！\n";
+  }
+
+  if (_status.extWindSpeed > 8.0) {
+    advice += "🌬️ 戶外風速較強，出門請小心掉落物及行車安全。\n";
+  }
+
+  if (_status.extDewPoint >= 24.0) {
+    advice += "💦 露點溫度高，體感會非常悶熱黏膩，請盡量待在室內避暑。\n";
+  }
+
+  if (advice == "") {
+    advice = "🌱 目前各項環境數值都在舒適範圍內，繼續保持好心情喔！\n";
+  }
+
+  _status.healthAdvice = advice;
+}
+
+void GameEngine::optimizeMemory() {
+  uint32_t freeHeap = ESP.getFreeHeap();
+  
+  // 檢查 ESP32 剩餘記憶體，低於 35KB 時主動執行垃圾回收，保證遊戲核心持續運作
+  if (freeHeap < 35000) {
+    Serial.printf("[Memory Guard] 偵測到低記憶體 (%u bytes)！執行垃圾回收與優化...\n", freeHeap);
+    
+    _status.lastEvent = "系統記憶體優化完畢。";
+    _status.story = "SoulBox 進入了短暫的冥想，釋放了腦袋裡的雜念，現在精神百倍！";
+    _status.environmentAdvice = "環境數據已重置優化。";
+    
+    _statusChanged = true;
+  }
 }

@@ -1,6 +1,6 @@
 let socket;
 let lastEvent = "";
-let lastWeatherData = {}; // 新增：用來記錄最新的氣象包
+let lastWeatherData = {}; 
 const labels = [];
 const hpValues = [];
 const playerLabels = [];
@@ -95,7 +95,7 @@ function sendCommand(cmd) {
 }
 
 function updateDashboard(data) {
-  lastWeatherData = data; // 存入最新資料
+  lastWeatherData = data; 
 
   text("role", data.role);
   text("dayCount", data.dayCount);
@@ -226,13 +226,15 @@ function timeAgo(ms) {
   return `${seconds}s ago`;
 }
 
-// 新增：顯示外在真實環境詳細數據的函式
 function showExternalEnvironment() {
   if (lastWeatherData.windSpeed === undefined || lastWeatherData.windSpeed === 0) {
     return openInfo("External Environment", "尚未取得外部氣象資料，請稍候或點擊 Sync Real Weather 抓取最新天氣。", "externalEnv");
   }
   
-  const body = `🌬️ Wind (風速/風向): 
+  const body = `🌡️ Temperature (外部溫度): 
+${Number(lastWeatherData.extTemperature).toFixed(1)} °C
+
+🌬️ Wind (風速/風向): 
 ${lastWeatherData.windSpeed} m/s ${lastWeatherData.windDir}
 
 💧 Humidity (外部濕度): 
@@ -248,9 +250,14 @@ ${lastWeatherData.pressure} hPa
 ${Number(lastWeatherData.dewPoint).toFixed(1)} °C
 
 ☀️ UV Index (紫外線指數): 
-3 UV (註:免費版API無即時紫外線，此為示意)`;
+3 UV (註:免費版API無即時紫外線，此為示意)
 
-  openInfo("🌍 外在真實環境 (External Environment)", body, "externalEnv");
+==============================
+🩺 SoulBox 貼心健康提醒：
+${lastWeatherData.healthAdvice || "資料分析中..."}
+`;
+
+  openInfo("🌍 外在真實環境與健康", body, "externalEnv");
 }
 
 connect();
