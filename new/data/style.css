@@ -133,6 +133,30 @@ button:hover { border-color: var(--blue); }
 .danger { background: #6a2d35; border-color: #a04551; }
 .magic { background: #3a2d65; border-color: #6850b8; }
 
+label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel-2);
+  font-weight: 700;
+  padding: 0 8px;
+}
+
+select:focus {
+  outline: 0;
+  border-color: var(--blue);
+}
+
 .skills { display: grid; gap: 8px; margin-bottom: 12px; }
 .skill {
   display: flex;
