@@ -21,13 +21,20 @@ unsigned long lastBroadcastMs = 0;
 int lastNtpYear = -1;
 int lastNtpYDay = -1;
 unsigned long lastNtpCheckMs = 0;
+bool weatherSlotsDone[4] = {false, false, false, false};
+bool bossSlotsDone[3] = {false, false, false};
 
 void publishStatus(bool force);
 void handleWebCommand(const String &command);
 void syncExtendedWeatherToGame();
+void applyManualScenario(const String &weatherType, float temperature, float humidity, const String &airQuality);
 void setupNetworkServices();
 void setupTimeSync();
 void checkNtpDayRollover();
+void checkScheduledWeatherUpdates();
+void checkAirQualityUpdate();
+void checkMealBossSchedule();
+void resetDailyScheduleFlags();
 void handleWeatherAlertButton();
 
 void syncExtendedWeatherToGame() {
@@ -39,6 +46,10 @@ void syncExtendedWeatherToGame() {
     weather.getVisibility(),
     weather.getDewPoint()
   );
+}
+
+void applyManualScenario(const String &weatherType, float temperature, float humidity, const String &airQuality) {
+  game.setManualScenario(temperature, humidity, weatherType, airQuality);
 }
 
 void handleWebCommand(const String &command) {
@@ -62,10 +73,15 @@ void handleWebCommand(const String &command) {
     game.initDailyStatus();
   } else if (command == "check_environment") {
     game.checkEnvironment();
+  } else if (command == "show_external_environment") {
+    game.showExternalEnvironmentDetail();
   } else if (command == "weather_api_update") {
     if (weather.updateFromAPI()) {
       game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
       syncExtendedWeatherToGame();
+      if (weather.updateAirQualityFromAPI()) {
+        game.setAirQuality(weather.getAirQuality());
+      }
       game.setSystemEvent("Weather API tick updated real weather data.");
     } else {
       game.setSystemEvent("Weather API tick failed. Check Wi-Fi or OpenWeather settings.");
@@ -74,6 +90,9 @@ void handleWebCommand(const String &command) {
     if (weather.updateFromAPI()) {
       game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
       syncExtendedWeatherToGame();
+      if (weather.updateAirQualityFromAPI()) {
+        game.setAirQuality(weather.getAirQuality());
+      }
       game.setSystemEvent("Real weather synced successfully.");
     } else {
       game.setSystemEvent("Real weather sync failed. Check Wi-Fi or OpenWeather settings.");
@@ -105,6 +124,43 @@ void handleWebCommand(const String &command) {
   } else if (command == "weather_thunder") {
     weather.updateWeatherMock("Thunderstorm");
     game.applyWeatherBuff("Thunderstorm");
+  } else if (command == "manual_weather_Rain") {
+    weather.updateWeatherMock("Rain");
+    applyManualScenario("Rain", weather.getTemperature(), weather.getHumidity(), "Humid");
+  } else if (command == "manual_weather_Clear") {
+    weather.updateWeatherMock("Clear");
+    applyManualScenario("Clear", weather.getTemperature(), weather.getHumidity(), "Good");
+  } else if (command == "manual_weather_Clouds") {
+    weather.updateWeatherMock("Clouds");
+    applyManualScenario("Clouds", weather.getTemperature(), weather.getHumidity(), "Good");
+  } else if (command == "manual_weather_Hot") {
+    weather.updateWeatherMock("Hot");
+    applyManualScenario("Hot", max(weather.getTemperature(), 34.0f), weather.getHumidity(), "Dry");
+  } else if (command == "manual_weather_Thunderstorm") {
+    weather.updateWeatherMock("Thunderstorm");
+    applyManualScenario("Thunderstorm", weather.getTemperature(), max(weather.getHumidity(), 80.0f), "Electric");
+  } else if (command == "manual_temp_cold") {
+    applyManualScenario(weather.getWeatherType(), 12.0f, weather.getHumidity(), "Good");
+  } else if (command == "manual_temp_comfort") {
+    applyManualScenario(weather.getWeatherType(), 24.0f, weather.getHumidity(), "Good");
+  } else if (command == "manual_temp_hot") {
+    applyManualScenario("Hot", 34.0f, weather.getHumidity(), "Dry");
+  } else if (command == "manual_humidity_dry") {
+    applyManualScenario(weather.getWeatherType(), weather.getTemperature(), 35.0f, "Dry");
+  } else if (command == "manual_humidity_comfort") {
+    applyManualScenario(weather.getWeatherType(), weather.getTemperature(), 60.0f, "Good");
+  } else if (command == "manual_humidity_humid") {
+    applyManualScenario("Rain", weather.getTemperature(), 85.0f, "Humid");
+  } else if (command == "manual_air_good") {
+    game.setAirQuality("Good");
+  } else if (command == "manual_air_poor") {
+    game.setAirQuality("Poor");
+  } else if (command == "manual_air_dry") {
+    game.setAirQuality("Dry");
+  } else if (command == "manual_air_humid") {
+    game.setAirQuality("Humid");
+  } else if (command == "manual_air_electric") {
+    game.setAirQuality("Electric");
   }
 
   publishStatus(true);
@@ -167,8 +223,65 @@ void checkNtpDayRollover() {
   if (timeInfo.tm_year != lastNtpYear || timeInfo.tm_yday != lastNtpYDay) {
     lastNtpYear = timeInfo.tm_year;
     lastNtpYDay = timeInfo.tm_yday;
+    resetDailyScheduleFlags();
     game.advanceDayFromNtp();
     publishStatus(true);
+  }
+}
+
+void resetDailyScheduleFlags() {
+  for (int i = 0; i < 4; i++) {
+    weatherSlotsDone[i] = false;
+  }
+  for (int i = 0; i < 3; i++) {
+    bossSlotsDone[i] = false;
+  }
+}
+
+void checkScheduledWeatherUpdates() {
+  struct tm timeInfo;
+  if (!getLocalTime(&timeInfo, 50)) {
+    return;
+  }
+
+  const int weatherHours[4] = {5, 12, 17, 21};
+  for (int i = 0; i < 4; i++) {
+    if (timeInfo.tm_hour == weatherHours[i] && !weatherSlotsDone[i]) {
+      weatherSlotsDone[i] = true;
+      if (weather.updateFromAPI()) {
+        game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
+        syncExtendedWeatherToGame();
+        game.setSystemEvent("Scheduled OpenWeather update completed.");
+        publishStatus(true);
+      }
+    }
+  }
+}
+
+void checkAirQualityUpdate() {
+  if (!weather.shouldUpdateAirQuality()) {
+    return;
+  }
+
+  if (weather.updateAirQualityFromAPI()) {
+    game.setAirQuality(weather.getAirQuality());
+    publishStatus(true);
+  }
+}
+
+void checkMealBossSchedule() {
+  struct tm timeInfo;
+  if (!getLocalTime(&timeInfo, 50)) {
+    return;
+  }
+
+  const int bossHours[3] = {7, 12, 18};
+  for (int i = 0; i < 3; i++) {
+    if (timeInfo.tm_hour == bossHours[i] && !bossSlotsDone[i]) {
+      bossSlotsDone[i] = true;
+      game.callScheduledBoss();
+      publishStatus(true);
+    }
   }
 }
 
@@ -182,6 +295,7 @@ void handleWeatherAlertButton() {
   }
 
   game.checkEnvironment();
+  game.showExternalEnvironmentDetail();
   game.setSystemEvent(
     String("Weather button: ") + weather.getWeatherType() +
     ", " + String(weather.getTemperature(), 1) + "C, " +
@@ -239,17 +353,13 @@ void loop() {
 
   handleWeatherAlertButton();
   checkNtpDayRollover();
+  checkScheduledWeatherUpdates();
+  checkAirQualityUpdate();
+  checkMealBossSchedule();
 
   if (weather.shouldUpdateLocal()) {
     if (weather.updateLocalSensor()) {
       game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
-    }
-  }
-
-  if (weather.shouldUpdateAPI()) {
-    if (weather.updateFromAPI()) {
-      game.setEnvironment(weather.getTemperature(), weather.getHumidity(), weather.getWeatherType());
-      syncExtendedWeatherToGame();
     }
   }
 

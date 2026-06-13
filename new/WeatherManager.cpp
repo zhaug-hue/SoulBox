@@ -24,6 +24,10 @@ bool WeatherManager::shouldUpdateAPI() const {
   return _lastApiUpdateMs == 0 || millis() - _lastApiUpdateMs >= API_UPDATE_INTERVAL_MS;
 }
 
+bool WeatherManager::shouldUpdateAirQuality() const {
+  return _lastAirQualityUpdateMs == 0 || millis() - _lastAirQualityUpdateMs >= AIR_QUALITY_UPDATE_INTERVAL_MS;
+}
+
 bool WeatherManager::updateLocalSensor() {
   _lastUpdateMs = millis();
 
@@ -98,6 +102,44 @@ bool WeatherManager::updateFromAPI() {
   return true;
 }
 
+bool WeatherManager::updateAirQualityFromAPI() {
+  _lastAirQualityUpdateMs = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Air quality API skipped: Wi-Fi is not connected.");
+    return false;
+  }
+
+  HTTPClient http;
+  String url = "http://api.openweathermap.org/data/2.5/air_pollution?lat=" + String(OPENWEATHER_LAT) +
+               "&lon=" + String(OPENWEATHER_LON) +
+               "&appid=" + String(OPENWEATHER_API_KEY);
+
+  http.begin(url);
+  const int httpCode = http.GET();
+
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.println("Air quality API failed. HTTP code: " + String(httpCode));
+    http.end();
+    return false;
+  }
+
+  const String payload = http.getString();
+  StaticJsonDocument<768> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+  http.end();
+
+  if (error) {
+    Serial.println("Air quality API JSON parse failed.");
+    return false;
+  }
+
+  const int aqi = doc["list"][0]["main"]["aqi"] | 1;
+  _airQuality = mapAirQuality(aqi);
+  Serial.println("Air quality API updated: " + _airQuality);
+  return true;
+}
+
 void WeatherManager::updateWeatherMock(const String &weather) {
   _weatherType = weather;
   _mockWeatherMode = true;
@@ -114,6 +156,10 @@ float WeatherManager::getHumidity() const {
 
 String WeatherManager::getWeatherType() const {
   return _weatherType;
+}
+
+String WeatherManager::getAirQuality() const {
+  return _airQuality;
 }
 
 float WeatherManager::getExtTemperature() const {
@@ -186,4 +232,14 @@ float WeatherManager::calculateDewPoint(float temperature, float humidity) const
   const float b = 237.7f;
   const float alpha = ((a * temperature) / (b + temperature)) + log(humidity / 100.0f);
   return (b * alpha) / (a - alpha);
+}
+
+String WeatherManager::mapAirQuality(int aqi) const {
+  if (aqi <= 2) {
+    return "Good";
+  }
+  if (aqi == 3) {
+    return "Moderate";
+  }
+  return "Poor";
 }

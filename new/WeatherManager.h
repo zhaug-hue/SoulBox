@@ -11,13 +11,16 @@ public:
   bool shouldUpdate() const;
   bool shouldUpdateLocal() const;
   bool shouldUpdateAPI() const;
+  bool shouldUpdateAirQuality() const;
   bool updateLocalSensor();
   bool updateFromAPI();
+  bool updateAirQualityFromAPI();
   void updateWeatherMock(const String &weather);
 
   float getTemperature() const;
   float getHumidity() const;
   String getWeatherType() const;
+  String getAirQuality() const;
   float getExtTemperature() const;
   float getWindSpeed() const;
   String getWindDir() const;
@@ -32,7 +35,9 @@ private:
   String _weatherType = "Clouds";
   unsigned long _lastUpdateMs = 0;
   unsigned long _lastApiUpdateMs = 0;
+  unsigned long _lastAirQualityUpdateMs = 0;
   bool _mockWeatherMode = false;
+  String _airQuality = "Good";
   float _extTemperature = 0;
   float _windSpeed = 0;
   String _windDir = "-";
@@ -44,6 +49,7 @@ private:
   String mapApiWeather(const String &apiMain, float currentTemp) const;
   String degreesToDirection(int deg) const;
   float calculateDewPoint(float temperature, float humidity) const;
+  String mapAirQuality(int aqi) const;
 };
 
 #endif

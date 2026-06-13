@@ -35,6 +35,7 @@ struct GameStatus {
   String monsterName;
   String skills[3];
   String pendingSkill;
+  String carriedBossSkill;
   bool hasPendingSkillChoice;
   int skillCount;
   float weatherMultiplier;
@@ -76,6 +77,8 @@ public:
   void startBattle(bool isBoss);
   void startNormalMonster();
   void callBoss();
+  void callScheduledBoss();
+  void handleMissedBoss();
   void playerAttack(const String &source);
   void normalAttack();
   void useSkill(int skillIndex);
@@ -88,6 +91,9 @@ public:
   void applyWeatherBuff(const String &weatherType);
   void setEnvironment(float temperature, float humidity, const String &weatherType);
   void setExtendedWeather(float temperature, float windSpeed, const String &windDir, int pressure, float visibility, float dewPoint);
+  void setManualScenario(float temperature, float humidity, const String &weatherType, const String &airQuality);
+  void setAirQuality(const String &airQuality);
+  void showExternalEnvironmentDetail();
   void checkEnvironment();
   void simulateWeatherApiUpdate();
   void simulateAirQualityUpdate();
@@ -121,6 +127,8 @@ private:
   GameState _state = BOOT;
   float _weatherMultiplier = 1.0;
   bool _statusChanged = true;
+  bool _firstDayMonsterDefeated = false;
+  bool _tutorialMonsterActive = true;
   unsigned long _stateChangedMs = 0;
 
   void setState(GameState state);

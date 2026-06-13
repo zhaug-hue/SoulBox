@@ -22,6 +22,7 @@ const unsigned long WEATHER_UPDATE_INTERVAL_MS = 5000;
 const unsigned long STATUS_BROADCAST_INTERVAL_MS = 1000;
 const unsigned long BUTTON_DEBOUNCE_MS = 80;
 const unsigned long NTP_CHECK_INTERVAL_MS = 30000;
+const unsigned long AIR_QUALITY_UPDATE_INTERVAL_MS = 900000;
 const int DAILY_SATIETY_DECAY = 1;
 const long GMT_OFFSET_SEC = 8 * 60 * 60;
 const int DAYLIGHT_OFFSET_SEC = 0;

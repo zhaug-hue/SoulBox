@@ -7,12 +7,13 @@ void GameEngine::initGame() {
 
 void GameEngine::initNewPlayer() {
   _status.pendingSkill = "";
+  _status.carriedBossSkill = "";
   _status.hasPendingSkillChoice = false;
   _status.playerHp = PLAYER_MAX_HP;
   _status.playerMaxHp = PLAYER_MAX_HP;
   _status.monsterName = "Monster";
-  _status.monsterHp = MONSTER_NORMAL_HP;
-  _status.monsterMaxHp = MONSTER_NORMAL_HP;
+  _status.monsterHp = 45;
+  _status.monsterMaxHp = 45;
   _status.satiety = 10;
   _status.dayCount = 1;
   _status.expressionCounter = 0;
@@ -52,6 +53,8 @@ void GameEngine::initNewPlayer() {
   _status.inBattle = false;
   _status.monsterAlive = true;
   _status.bossBattle = false;
+  _firstDayMonsterDefeated = false;
+  _tutorialMonsterActive = true;
   setState(IDLE);
   setEvent("SoulBox woke up on Day 1.");
   startFirstDayTutorial();
@@ -76,6 +79,8 @@ void GameEngine::initDailyStatus() {
   _status.showTutorial = true;
   _status.showFirstStory = true;
   _status.showEnvironmentAdvice = true;
+  _firstDayMonsterDefeated = true;
+  _tutorialMonsterActive = false;
   _status.story = "A new day begins. SoulBox is ready to learn from the weather.";
   checkSatietyBuffDebuff();
   setState(IDLE);
@@ -93,6 +98,8 @@ void GameEngine::advanceDayFromNtp() {
   _status.bossBattle = false;
   _status.expressionCounter = 0;
   _status.showEnvironmentAdvice = true;
+  _firstDayMonsterDefeated = true;
+  _tutorialMonsterActive = false;
   _status.story = "A real new day has passed. SoulBox used satiety overnight and a new monster appeared.";
   if (_status.satiety <= 3) {
     setState(WARNING);
@@ -103,14 +110,23 @@ void GameEngine::advanceDayFromNtp() {
 }
 
 void GameEngine::startFirstDayTutorial() {
-  grantFirstDayWeatherSkill();
-  setEvent("Tutorial: press Attack, try weather buttons, then call Boss.");
+  setEvent("Tutorial: defeat the first monster with three normal attacks to learn today's weather skill.");
 }
 
 void GameEngine::startBattle(bool isBoss) {
   _status.bossBattle = isBoss;
   _status.monsterName = isBoss ? "Boss" : "Monster";
-  _status.monsterMaxHp = isBoss ? MONSTER_NORMAL_HP * 2 : MONSTER_NORMAL_HP;
+  if (isBoss) {
+    _status.monsterMaxHp = MONSTER_NORMAL_HP * 2;
+    reduceSatiety(2);
+  } else if (_status.dayCount == 1 && !_firstDayMonsterDefeated) {
+    _status.monsterMaxHp = 45;
+    _tutorialMonsterActive = true;
+  } else {
+    _status.monsterMaxHp = MONSTER_NORMAL_HP;
+    reduceSatiety(1);
+    _tutorialMonsterActive = false;
+  }
   _status.monsterHp = _status.monsterMaxHp;
   _status.monsterAlive = true;
   _status.inBattle = true;
@@ -123,14 +139,33 @@ void GameEngine::startNormalMonster() {
 }
 
 void GameEngine::callBoss() {
-  _status.monsterName = "Boss";
-  _status.bossBattle = true;
-  _status.monsterMaxHp = MONSTER_NORMAL_HP * 2;
-  _status.monsterHp = _status.monsterMaxHp;
-  _status.monsterAlive = true;
-  _status.inBattle = true;
-  setState(BATTLE);
-  setEvent("Boss appeared!");
+  startBattle(true);
+}
+
+void GameEngine::callScheduledBoss() {
+  if (_status.inBattle && _status.monsterAlive && !_status.bossBattle) {
+    _status.inBattle = false;
+    _status.monsterAlive = false;
+    reduceSatiety(1);
+    setEvent("Unfinished monster escaped before mealtime Boss. Satiety decreased.");
+  } else if (_status.inBattle && _status.monsterAlive && _status.bossBattle) {
+    handleMissedBoss();
+  }
+  startBattle(true);
+  setEvent("Scheduled mealtime Boss appeared.");
+}
+
+void GameEngine::handleMissedBoss() {
+  if (_status.skillCount > 1) {
+    const int index = _status.skillCount - 1;
+    _status.carriedBossSkill = _status.skills[index];
+    _status.skills[index] = "";
+    _status.skillCount -= 1;
+    setEvent("Boss was missed. A skill was sealed for the next Boss reward.");
+  } else {
+    reduceSatiety(1);
+    setEvent("Boss was missed. Basic Attack stayed safe, but satiety decreased.");
+  }
 }
 
 void GameEngine::playerAttack(const String &source) {
@@ -195,24 +230,8 @@ void GameEngine::monsterAttack() {
     return;
   }
 
-  const int damage = _status.bossBattle ? 14 : 9;
-  _status.playerHp = clampInt(_status.playerHp - damage, 0, _status.playerMaxHp);
   updateExpressionNegative();
-
-  if (_status.playerHp <= 0) {
-    _status.inBattle = false;
-    _status.monsterAlive = true;
-    _status.mood = "sad";
-    _status.moodFace = getCurrentExpression();
-    setState(RESULT);
-    if (_status.bossBattle) {
-      handleBossFailedPenalty();
-    } else {
-      setEvent("SoulBox was hit too hard. Try weather skills.");
-    }
-  } else {
-    _statusChanged = true;
-  }
+  setEvent(_status.monsterName + " countered. SoulBox expression changed.");
 }
 
 void GameEngine::feedPet() {
@@ -300,6 +319,32 @@ void GameEngine::setExtendedWeather(float temperature, float windSpeed, const St
   _statusChanged = true;
 }
 
+void GameEngine::setManualScenario(float temperature, float humidity, const String &weatherType, const String &airQuality) {
+  _status.temperature = temperature;
+  _status.humidity = humidity;
+  applyWeatherBuff(weatherType);
+  _status.airQuality = airQuality;
+  updateHealthAdvice();
+  _status.environmentAdvice = _status.healthAdvice;
+  _status.showEnvironmentAdvice = true;
+  setEvent("Manual environment scenario updated.");
+}
+
+void GameEngine::setAirQuality(const String &airQuality) {
+  _status.airQuality = airQuality;
+  updateHealthAdvice();
+  _status.environmentAdvice = _status.healthAdvice;
+  _status.showEnvironmentAdvice = true;
+  setEvent("Air quality scenario updated: " + airQuality);
+}
+
+void GameEngine::showExternalEnvironmentDetail() {
+  updateHealthAdvice();
+  _status.environmentAdvice = _status.healthAdvice;
+  _status.showEnvironmentAdvice = true;
+  setEvent("External environment details requested.");
+}
+
 void GameEngine::checkEnvironment() {
   simulateAirQualityUpdate();
   _status.showEnvironmentAdvice = true;
@@ -373,7 +418,7 @@ void GameEngine::checkBattleResult() {
   if (_status.monsterHp <= 0) {
     _status.monsterAlive = false;
     _status.inBattle = false;
-    addSatiety(_status.bossBattle ? 2 : 1);
+    addSatiety(_status.bossBattle ? 2 : 2);
     _status.mood = "happy";
     updateExpressionPositive();
     setState(RESULT);
@@ -381,6 +426,13 @@ void GameEngine::checkBattleResult() {
       grantBossSkill();
       setEvent("Boss defeated. SoulBox learned a Boss skill.");
     } else {
+      if (_status.dayCount == 1 && !_firstDayMonsterDefeated) {
+        _firstDayMonsterDefeated = true;
+        _tutorialMonsterActive = false;
+        grantFirstDayWeatherSkill();
+        setEvent("First monster defeated. SoulBox learned today's weather skill.");
+        return;
+      }
       setEvent("Monster defeated. SoulBox expression improved.");
     }
   }
@@ -410,34 +462,28 @@ void GameEngine::updateExpressionNegative() {
 
 String GameEngine::getCurrentExpression() const {
   if (_status.expressionCounter >= 3) {
-    return "( ^_^ )";
+    return "(●´ω｀●)ゞ";
+  }
+  if (_status.expressionCounter >= 2) {
+    return "( ～'ω')～";
   }
   if (_status.expressionCounter >= 1) {
-    return "( 'u' )";
+    return "ヽ(・×・´)ゞ";
+  }
+  if (_status.expressionCounter <= -5) {
+    return "｡ﾟヽ(ﾟ´Д`)ﾉﾟ｡";
   }
   if (_status.expressionCounter <= -3) {
-    return "( T_T )";
+    return "Σ(ﾟДﾟ；≡；ﾟдﾟ)";
   }
   if (_status.expressionCounter <= -1) {
-    return "( >_< )";
+    return "Σ(ﾟдﾟ)";
   }
-  return "( ._. )";
+  return "/ᐠ .ᆺ. ᐟ\\ﾉ";
 }
 
 String GameEngine::getCurrentOledExpression() const {
-  if (_status.expressionCounter >= 3) {
-    return "(*^_^*)";
-  }
-  if (_status.expressionCounter >= 1) {
-    return "(^_^)v";
-  }
-  if (_status.expressionCounter <= -3) {
-    return "(T_T)";
-  }
-  if (_status.expressionCounter <= -1) {
-    return "(>_<;)";
-  }
-  return "(^.^)/";
+  return getCurrentExpression();
 }
 
 void GameEngine::updateEnvironmentAdvice() {
@@ -470,6 +516,11 @@ void GameEngine::grantFirstDayWeatherSkill() {
 
 void GameEngine::grantBossSkill() {
   String newSkill = "Boss Breaker";
+  if (_status.carriedBossSkill != "" && (millis() % 2 == 0)) {
+    newSkill = _status.carriedBossSkill;
+  }
+  _status.carriedBossSkill = "";
+
   if (canAddSkill(newSkill)) {
     addSkill(newSkill);
     setEvent("Boss defeated. New skill learned: " + newSkill);
@@ -636,6 +687,20 @@ void GameEngine::updateHealthAdvice() {
 
   if (_status.extDewPoint >= 24.0) {
     advice += "Dew point is high. It may feel muggy, so rest indoors if possible.\n";
+  }
+
+  if (_status.airQuality == "Poor") {
+    advice += "Air quality is poor. Reduce outdoor activity and consider closing windows.\n";
+  } else if (_status.airQuality == "Moderate") {
+    advice += "Air quality is acceptable but not perfect. Sensitive users should watch outdoor time.\n";
+  } else if (_status.airQuality == "Good") {
+    advice += "Air quality is good. If outdoor conditions are safe, opening a window is reasonable.\n";
+  } else if (_status.airQuality == "Humid") {
+    advice += "Air feels humid. Dehumidifying may make the room more comfortable.\n";
+  } else if (_status.airQuality == "Dry") {
+    advice += "Air feels dry. Hydrate and consider adding moisture indoors.\n";
+  } else if (_status.airQuality == "Electric") {
+    advice += "Thunderstorm-like air detected. Stay aware of outdoor safety.\n";
   }
 
   if (advice == "") {
