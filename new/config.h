@@ -4,8 +4,8 @@
 #include <Arduino.h>
 
 // Fill these in before uploading to the ESP32.
-const char WIFI_SSID[] = "TTT";
-const char WIFI_PASSWORD[] = "0o0o0o0o0o";
+const char WIFI_SSID[] = "Roy";
+const char WIFI_PASSWORD[] = "Roy930916";
 
 const uint8_t OLED_SDA_PIN = 21;
 const uint8_t OLED_SCL_PIN = 22;
